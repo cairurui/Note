@@ -2,45 +2,21 @@
 
 #include "XConstDefine.h"
 
+#include "XJNICall.h"
+
 extern "C" {
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
 }
 
+XJNICall *pJniCall;
 
-jobject initCreateAudioTrack(JNIEnv *env) {
-    /*AudioTrack(int streamType, int sampleRateInHz, int channelConfig, int audioFormat,
-            int bufferSizeInBytes, int mode)*/
-    jclass jAudioTrackClass = env->FindClass("android/media/AudioTrack");
-    jmethodID jAudioTackCMid = env->GetMethodID(jAudioTrackClass, "<init>", "(IIIIII)V");
-
-    int streamType = 3;
-    int sampleRateInHz = AUDIO_SAMPLE_RATE;
-    int channelConfig = (0x4 | 0x8);
-    int audioFormat = 2;
-    int mode = 1;
-
-    // int getMinBufferSize(int sampleRateInHz, int channelConfig, int audioFormat)
-    jmethodID getMinBufferSizeMid = env->GetStaticMethodID(jAudioTrackClass, "getMinBufferSize",
-                                                           "(III)I");
-    int bufferSizeInBytes = env->CallStaticIntMethod(jAudioTrackClass, getMinBufferSizeMid,
-                                                     sampleRateInHz, channelConfig, audioFormat);
-    LOGE("bufferSizeInBytes = %d", bufferSizeInBytes);
-
-    jobject jAudioTrackObj = env->NewObject(jAudioTrackClass, jAudioTackCMid, streamType,
-                                            sampleRateInHz, channelConfig, audioFormat,
-                                            bufferSizeInBytes, mode);
-
-    // play
-    jmethodID playMid = env->GetMethodID(jAudioTrackClass, "play", "()V");
-    env->CallVoidMethod(jAudioTrackObj, playMid);
-
-    return jAudioTrackObj;
-}
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_) {
     const char *url = env->GetStringUTFChars(url_, 0);
+    pJniCall = new XJNICall(NULL, env, instance);
+
 
     av_register_all();
     avformat_network_init();
@@ -141,7 +117,7 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
     jobject jAudioTrackObj;
     jAudioTrackClass = env->FindClass("android/media/AudioTrack");
     jWriteMid = env->GetMethodID(jAudioTrackClass, "write", "([BII)I");
-    jAudioTrackObj = initCreateAudioTrack(env);
+
 
     AVPacket *pPacket;
     AVFrame *pFrame;
@@ -171,9 +147,10 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
 
 
                     // 0 把 c 的数组的数据同步到 jbyteArray , 然后释放native数组
-                    env->ReleaseByteArrayElements(jPcmByteArray, jPcmData, JNI_COMMIT); /* 1 copy content, do not free buffer */
+                    env->ReleaseByteArrayElements(jPcmByteArray, jPcmData,
+                                                  JNI_COMMIT); /* 1 copy content, do not free buffer */
 
-                    env->CallIntMethod(jAudioTrackObj, jWriteMid, jPcmByteArray, 0, dataSize);
+                    pJniCall->callAudioTrackWrite(jPcmByteArray, 0, dataSize);
 
                 }
 

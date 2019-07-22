@@ -18,6 +18,7 @@ add_library(
         # Sets the library as a shared library.
         SHARED
         # Provides a relative path to your source file(s).
+        src/main/cpp/XJNICall.cpp
         ${SRC_LIST}
 )
 
