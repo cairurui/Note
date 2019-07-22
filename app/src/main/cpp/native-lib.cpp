@@ -4,6 +4,7 @@
 
 extern "C" {
 #include "libavformat/avformat.h"
+#include "libswresample/swresample.h"
 }
 
 
@@ -105,6 +106,36 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
         // todo release
     }
 
+    SwrContext *swrContext;
+
+    // ---------- 重采样 start ----------
+    int64_t out_ch_layout = AV_CH_LAYOUT_STEREO;
+    enum AVSampleFormat out_sample_fmt = AVSampleFormat::AV_SAMPLE_FMT_S16;
+    int out_sample_rate = AUDIO_SAMPLE_RATE;
+    int64_t in_ch_layout = pCodecContext->channel_layout;
+    enum AVSampleFormat in_sample_fmt = pCodecContext->sample_fmt;
+    int in_sample_rate = pCodecContext->sample_rate;
+    swrContext = swr_alloc_set_opts(NULL, out_ch_layout, out_sample_fmt,
+                                    out_sample_rate, in_ch_layout, in_sample_fmt, in_sample_rate, 0,
+                                    NULL);
+    if (swrContext == NULL) {
+        // 提示错误
+//        callPlayerJniError(SWR_ALLOC_SET_OPTS_ERROR_CODE, "swr alloc set opts error");
+        return;
+    }
+    int swrInitRes = swr_init(swrContext);
+    if (swrInitRes < 0) {
+//        callPlayerJniError(SWR_CONTEXT_INIT_ERROR_CODE, "swr context swr init error");
+        return;
+    }
+    // size 是播放指定的大小，是最终输出的大小
+    int outChannels = av_get_channel_layout_nb_channels(out_ch_layout);
+    int dataSize = av_samples_get_buffer_size(NULL, outChannels, pCodecParameters->frame_size,
+                                              out_sample_fmt, 0);
+    uint8_t *resampleOutBuffer = (uint8_t *) malloc(dataSize);
+    // ---------- 重采样 end ----------
+
+
     jclass jAudioTrackClass;
     jmethodID jWriteMid;
     jobject jAudioTrackObj;
@@ -116,6 +147,12 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
     AVFrame *pFrame;
     pPacket = av_packet_alloc();
     pFrame = av_frame_alloc();
+
+    // native 创建 c 数组
+    jbyteArray jPcmByteArray = env->NewByteArray(dataSize);
+    jbyte *jPcmData = env->GetByteArrayElements(jPcmByteArray, NULL);
+
+
     int index = 0;
     while (av_read_frame(pAVFormatContext, pPacket) >= 0) {
 
@@ -127,16 +164,16 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
                     index++;
                     LOGE("解码第 %d 帧", index);
 
-                    int dataSize = av_samples_get_buffer_size(NULL, pFrame->channels,
-                                                              pFrame->nb_samples,
-                                                              pCodecContext->sample_fmt, 0);
-                    jbyteArray jPcmByteArray = env->NewByteArray(dataSize);
-                    jbyte *jPcmData = env->GetByteArrayElements(jPcmByteArray, NULL);
-                    memcpy(jPcmData, pFrame->data, dataSize);
+                    // 调用重采样的方法
+                    swr_convert(swrContext, &resampleOutBuffer, pFrame->nb_samples,
+                                (const uint8_t **) pFrame->data, pFrame->nb_samples);
+                    memcpy(jPcmData, resampleOutBuffer, dataSize);
 
-                    env->ReleaseByteArrayElements(jPcmByteArray, jPcmData, 0);
+
+                    // 0 把 c 的数组的数据同步到 jbyteArray , 然后释放native数组
+                    env->ReleaseByteArrayElements(jPcmByteArray, jPcmData, JNI_COMMIT); /* 1 copy content, do not free buffer */
+
                     env->CallIntMethod(jAudioTrackObj, jWriteMid, jPcmByteArray, 0, dataSize);
-                    env->DeleteLocalRef(jPcmByteArray);
 
                 }
 
@@ -149,11 +186,16 @@ Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_
         av_packet_unref(pPacket);
         av_frame_unref(pFrame);
     }
+
+
+    env->ReleaseByteArrayElements(jPcmByteArray, jPcmData, 0);
+
+    env->DeleteLocalRef(jPcmByteArray);
+
     av_packet_free(&pPacket);
     av_frame_free(&pFrame);
     env->DeleteLocalRef(jAudioTrackObj);
 
-    __av_resources_destroy:
     if (pCodecContext != NULL) {
         avcodec_close(pCodecContext);
         avcodec_free_context(&pCodecContext);
