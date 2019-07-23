@@ -3,14 +3,14 @@ cmake_minimum_required(VERSION 3.4.1)
 
 # 需要引入我们头文件,以这个配置的目录为基准
 include_directories(src/main/jniLibs/include)
-# include_directories(src/main/jniLibs/other)
+include_directories(src/main/jniLibs/other)
 
 # 添加共享库搜索路径
 LINK_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/main/jniLibs/armeabi)
 
 # 指定源文件目录
-AUX_SOURCE_DIRECTORY(${CMAKE_SOURCE_DIR}/src/main/cpp SRC_LIST)
-# FILE(GLOB SRC_LIST "src/main/cpp/*.cpp")
+#AUX_SOURCE_DIRECTORY(${CMAKE_SOURCE_DIR}/src/main/cpp SRC_LIST)
+FILE(GLOB SRC_LIST "src/main/cpp/*.cpp")
 
 add_library(
         # Sets the name of the library.
@@ -19,6 +19,8 @@ add_library(
         SHARED
         # Provides a relative path to your source file(s).
         src/main/cpp/XJNICall.cpp
+        src/main/cpp/XFFmpeg.cpp
+        src/main/cpp/XFFmpeg.h
         ${SRC_LIST}
 )
 

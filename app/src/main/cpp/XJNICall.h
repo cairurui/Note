@@ -7,10 +7,16 @@
 
 #include <jni.h>
 
+enum ThreadMode{
+    THREAD_CHILD,THREAD_MAIN
+};
+
+
 class XJNICall {
 public:
     JavaVM *javaVM;
     JNIEnv *jniEnv;
+
     jobject jPlayerObj;
 
     jobject jAudioTrackObj;

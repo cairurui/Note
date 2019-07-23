@@ -4,10 +4,11 @@
 #include "XConstDefine.h"
 #include "XJNICall.h"
 
-XJNICall::XJNICall(JavaVM *javaVM, JNIEnv *jniEnv, jobject jPlayerObj) {
+XJNICall::XJNICall(JavaVM *javaVM, JNIEnv *env, jobject jPlayerObj) {
     this->javaVM = javaVM;
-    this->jniEnv = jniEnv;
-    this->jPlayerObj = jPlayerObj;
+    this->jniEnv = env;
+    this->jPlayerObj = jniEnv->NewGlobalRef(jPlayerObj);
+
 
     initCreateAudioTrack();
 
@@ -17,8 +18,8 @@ XJNICall::XJNICall(JavaVM *javaVM, JNIEnv *jniEnv, jobject jPlayerObj) {
 }
 
 XJNICall::~XJNICall() {
+    jniEnv->DeleteLocalRef(jPlayerObj);
     jniEnv->DeleteLocalRef(jAudioTrackObj);
-
 }
 
 void XJNICall::callPlayerError(int code, char *msg) {
