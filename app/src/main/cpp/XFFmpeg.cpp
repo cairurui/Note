@@ -68,6 +68,10 @@ void XFFmpeg::callPlayerJniError(int code, char *msg) {
 
 
 void XFFmpeg::prepare() {
+    // env 是线程私有的，这里是子线程，env 是主线程的，所以需要重新创建
+    xJniCall->changeToChildThread();
+    // use of deleted local reference 0x89 对象被删除了，简单点就直接全部重新创建
+    xJniCall = new XJNICall(xJniCall->javaVM, xJniCall->jniEnv, xJniCall->jPlayerObj);
 
     av_register_all();
     avformat_network_init();
@@ -85,9 +89,6 @@ void XFFmpeg::prepare() {
         LOGE("format find stream info error: %s", av_err2str(formatFindStreamInfoRes));
         callPlayerJniError(formatFindStreamInfoRes, av_err2str(formatFindStreamInfoRes));
     }
-    LOGE("format find stream info error: 1");
-    callPlayerJniError(formatFindStreamInfoRes, "format find stream info error: 1111111111");
-    LOGE("format find stream info error: 2");
 
     int audioStramIndex = 0;
     audioStramIndex = av_find_best_stream(pAVFormatContext, AVMediaType::AVMEDIA_TYPE_AUDIO, -1, -1,

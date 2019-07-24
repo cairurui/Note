@@ -17,6 +17,15 @@ XJNICall::XJNICall(JavaVM *javaVM, JNIEnv *env, jobject jPlayerObj) {
     jPlayerErrorMid = jniEnv->GetMethodID(jPlayerClass, "onError", "(ILjava/lang/String;)V");
 }
 
+
+void XJNICall::changeToChildThread(){
+    // 获取当前线程的 JNIEnv， 通过 JavaVM
+    if (javaVM->AttachCurrentThread(&jniEnv, 0) != JNI_OK) {
+        LOGE("get child thread jniEnv error!");
+        return;
+    }
+}
+
 XJNICall::~XJNICall() {
     jniEnv->DeleteLocalRef(jPlayerObj);
     jniEnv->DeleteLocalRef(jAudioTrackObj);

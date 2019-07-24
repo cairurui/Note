@@ -36,6 +36,7 @@ public:
 
     void callPlayerError(int code, char *msg);
 
+    void changeToChildThread();
 
 };
 
