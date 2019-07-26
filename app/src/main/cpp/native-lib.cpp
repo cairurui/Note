@@ -33,8 +33,38 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *j_vm, void *reserved) {
 extern "C" JNIEXPORT void JNICALL
 Java_com_xc_note_media_XPlayer_nPlay(JNIEnv *env, jobject instance, jstring url_) {
     const char *url = env->GetStringUTFChars(url_, 0);
-    pJniCall = new XJNICall(javaVM, env, instance);
-    pXFFmpeg = new XFFmpeg(pJniCall, url);
-    pXFFmpeg->play();
+
+    if (pXFFmpeg != NULL) {
+        pXFFmpeg->play();
+    }
+
+    env->ReleaseStringUTFChars(url_, url);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xc_note_media_XPlayer_nPrepareAsync(JNIEnv *env, jobject instance, jstring url_) {
+    const char *url = env->GetStringUTFChars(url_, 0);
+
+    if (pXFFmpeg == NULL) {
+        pJniCall = new XJNICall(javaVM, env, instance);
+        pXFFmpeg = new XFFmpeg(pJniCall, url);
+        pXFFmpeg->prepareAsync();
+    }
+
+    env->ReleaseStringUTFChars(url_, url);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xc_note_media_XPlayer_nPrepare(JNIEnv *env, jobject instance, jstring url_) {
+    const char *url = env->GetStringUTFChars(url_, 0);
+
+    if (pXFFmpeg == NULL) {
+        pJniCall = new XJNICall(javaVM, env, instance);
+        pXFFmpeg = new XFFmpeg(pJniCall, url);
+        pXFFmpeg->prepare(THREAD_MAIN);
+    }
+
     env->ReleaseStringUTFChars(url_, url);
 }

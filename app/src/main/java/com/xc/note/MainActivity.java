@@ -6,6 +6,8 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.xc.note.media.XPlayer;
+import com.xc.note.media.listener.MediaErrorListener;
+import com.xc.note.media.listener.MediaPreparedListener;
 
 import java.io.File;
 
@@ -22,9 +24,27 @@ public class MainActivity extends AppCompatActivity {
 
         Log.e("TAG", "file is exist: " + mMusicFile.exists());
 
+
         mPlayer = new XPlayer();
         mPlayer.setDataSource(mMusicFile.getAbsolutePath());
-        mPlayer.play();
+
+        mPlayer.setOnErrorListener(new MediaErrorListener() {
+            @Override
+            public void onError(int code, String msg) {
+                Log.e("TAG", "error code: " + code);
+                Log.e("TAG", "error msg: " + msg);
+            }
+        });
+
+        mPlayer.setOnPreparedListener(new MediaPreparedListener() {
+            @Override
+            public void onPrepared() {
+                Log.e("TAG", "准备完毕");
+                mPlayer.play();
+            }
+        });
+
+        mPlayer.prepareAsync();
     }
 
 }

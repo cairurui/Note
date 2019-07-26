@@ -21,6 +21,12 @@ add_library(
         src/main/cpp/XJNICall.cpp
         src/main/cpp/XFFmpeg.cpp
         src/main/cpp/XFFmpeg.h
+        src/main/cpp/XAudio.cpp
+        src/main/cpp/XAudio.h
+        src/main/cpp/XPacketQueue.cpp
+        src/main/cpp/XPacketQueue.h
+        src/main/cpp/XPlayerStatus.cpp
+        src/main/cpp/XPlayerStatus.h
         ${SRC_LIST}
 )
 

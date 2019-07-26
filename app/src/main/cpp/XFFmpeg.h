@@ -8,6 +8,7 @@
 #include "XJNICall.h"
 #include "XConstDefine.h"
 #include <pthread.h>
+#include "XAudio.h"
 
 extern "C" {
 #include "libavformat/avformat.h"
@@ -17,12 +18,10 @@ extern "C" {
 
 class XFFmpeg {
 public:
-    XJNICall *xJniCall = NULL;
     char *url = NULL;
     AVFormatContext *pAVFormatContext = 0;
-    AVCodecContext *pCodecContext = 0;
-    SwrContext *swrContext;
-    uint8_t *resampleOutBuffer;
+    XAudio *xAudio = NULL;
+    XJNICall *xJniCall = NULL;
 
 public:
     XFFmpeg(XJNICall *xJniCall, const char *url);
@@ -34,9 +33,11 @@ public:
 
     void prepare();
 
+    void prepare(ThreadMode threadMode);
+
     void prepareAsync();
 
-    void callPlayerJniError(int code, char *msg);
+    void callPlayerJniError(ThreadMode threadMode, int code, char *msg);
 
     void release();
 

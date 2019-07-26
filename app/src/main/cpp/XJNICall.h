@@ -7,8 +7,8 @@
 
 #include <jni.h>
 
-enum ThreadMode{
-    THREAD_CHILD,THREAD_MAIN
+enum ThreadMode {
+    THREAD_CHILD, THREAD_MAIN
 };
 
 
@@ -19,24 +19,21 @@ public:
 
     jobject jPlayerObj;
 
-    jobject jAudioTrackObj;
-    jmethodID jAudioTrackWriteMid;
     jmethodID jPlayerErrorMid;
+    jmethodID jPlayerPreparedMid;
 
 public:
     XJNICall(JavaVM *javaVM, JNIEnv *jniEnv, jobject jPlayerObj);
 
     ~XJNICall();
 
-private:
-    void initCreateAudioTrack();
-
 public:
-    void callAudioTrackWrite(jbyteArray audioData, int offsetInBytes, int sizeInBytes);
 
-    void callPlayerError(int code, char *msg);
+    void callPlayerError(ThreadMode threadMode, int code, char *msg);
 
-    void changeToChildThread();
+
+    void callPlayerPrepared(ThreadMode mode);
+
 
 };
 
