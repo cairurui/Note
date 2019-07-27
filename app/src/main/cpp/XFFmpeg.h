@@ -41,6 +41,11 @@ public:
 
     void release();
 
+    pthread_mutex_t releaseMutex;
+
+    void onPause();
+
+    void onResume();
 };
 
 

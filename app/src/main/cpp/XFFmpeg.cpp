@@ -7,6 +7,7 @@ XFFmpeg::XFFmpeg(XJNICall *xJniCall, const char *url) {
     this->xJniCall = xJniCall;
     this->url = (char *) (malloc(strlen(url) + 1));
     memcpy(this->url, url, strlen(url) + 1);
+    pthread_mutex_init(&releaseMutex, NULL);
 }
 
 XFFmpeg::~XFFmpeg() {
@@ -37,6 +38,23 @@ void XFFmpeg::play() {
 }
 
 void XFFmpeg::release() {
+    if (xAudio == NULL) {
+        return;
+    }
+
+    pthread_mutex_lock(&releaseMutex);
+
+    if (xAudio != NULL && xAudio->xPlayerStatus->isExit) {
+        return;
+    }
+
+
+    if (xAudio != NULL) {
+        xAudio->release();
+        delete (xAudio);
+        xAudio = NULL;
+    }
+
     if (pAVFormatContext != NULL) {
         avformat_close_input(&pAVFormatContext);
         avformat_free_context(pAVFormatContext);
@@ -47,6 +65,9 @@ void XFFmpeg::release() {
         free(url);
         url == NULL;
     }
+
+    pthread_mutex_unlock(&releaseMutex);
+    pthread_mutex_destroy(&releaseMutex);
 }
 
 void XFFmpeg::callPlayerJniError(ThreadMode threadMode, int code, char *msg) {
@@ -87,4 +108,16 @@ void XFFmpeg::prepare(ThreadMode threadMode) {
 
     xJniCall->callPlayerPrepared(threadMode);
 
+}
+
+void XFFmpeg::onPause() {
+    if (xAudio!=NULL){
+        xAudio->pauseAudio();
+    }
+}
+
+void XFFmpeg::onResume() {
+    if (xAudio!=NULL){
+        xAudio->resumeAudio();
+    }
 }

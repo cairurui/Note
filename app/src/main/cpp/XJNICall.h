@@ -21,6 +21,7 @@ public:
 
     jmethodID jPlayerErrorMid;
     jmethodID jPlayerPreparedMid;
+    jmethodID jPlayerProgressMid;
 
 public:
     XJNICall(JavaVM *javaVM, JNIEnv *jniEnv, jobject jPlayerObj);
@@ -34,7 +35,9 @@ public:
 
     void callPlayerPrepared(ThreadMode mode);
 
+    void onCallProgress(ThreadMode threadMode, int current, int total);
 
+    void onCallComplete(ThreadMode mode);
 };
 
 

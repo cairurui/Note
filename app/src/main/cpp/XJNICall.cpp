@@ -12,11 +12,12 @@ XJNICall::XJNICall(JavaVM *javaVM, JNIEnv *env, jobject jPlayerObj) {
     jclass jPlayerClass = jniEnv->GetObjectClass(jPlayerObj);
     jPlayerErrorMid = jniEnv->GetMethodID(jPlayerClass, "onError", "(ILjava/lang/String;)V");
     jPlayerPreparedMid = jniEnv->GetMethodID(jPlayerClass, "onPrepared", "()V");
+    jPlayerProgressMid = jniEnv->GetMethodID(jPlayerClass, "onProgress", "(II)V");
 }
 
 
 XJNICall::~XJNICall() {
-    jniEnv->DeleteLocalRef(jPlayerObj);
+    jniEnv->DeleteGlobalRef(jPlayerObj);
 }
 
 void XJNICall::callPlayerError(ThreadMode threadMode, int code, char *msg) {
@@ -53,6 +54,25 @@ void XJNICall::callPlayerPrepared(ThreadMode mode) {
         env->CallVoidMethod(jPlayerObj, jPlayerPreparedMid);
         javaVM->DetachCurrentThread();
     }
+
+}
+
+void XJNICall::onCallProgress(ThreadMode threadMode, int current, int total) {
+    if (threadMode == THREAD_MAIN) {
+        jniEnv->CallVoidMethod(jPlayerObj, jPlayerProgressMid, current, total);
+    } else if (threadMode == THREAD_CHILD) {
+        JNIEnv *env;
+        if (javaVM->AttachCurrentThread(&env, 0) != JNI_OK) {
+            LOGE("get child thread jniEnv error!");
+            return;
+        }
+        env->CallVoidMethod(jPlayerObj, jPlayerProgressMid, current, total);
+        javaVM->DetachCurrentThread();
+    }
+
+}
+
+void XJNICall::onCallComplete(ThreadMode mode) {
 
 }
 

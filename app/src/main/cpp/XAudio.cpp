@@ -12,6 +12,8 @@ XAudio::XAudio(int audioStreamIndex, XJNICall *pJniCall, AVFormatContext *pForma
 
     xPlayerStatus = new XPlayerStatus();
     xPacketQueue = new XPacketQueue();
+
+
 }
 
 void *threadPlay(void *context) {
@@ -62,9 +64,13 @@ int XAudio::resampleAudio() {
                 index++;
                 LOGE("解码第 %d 帧", index);
                 // 调用重采样的方法
-                dataSize = swr_convert(swrContext, &resampleOutBuffer, pFrame->nb_samples,
-                                       (const uint8_t **) pFrame->data, pFrame->nb_samples);
-                dataSize = dataSize * 2 * 2;
+                int nb = swr_convert(swrContext, &resampleOutBuffer, pFrame->nb_samples,
+                                     (const uint8_t **) pFrame->data, pFrame->nb_samples);
+
+
+                int outChannels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
+                dataSize = nb * outChannels * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
+                currentTime = pFrame->pts * av_q2d(timeBase);
                 break;
             }
         }
@@ -79,9 +85,31 @@ int XAudio::resampleAudio() {
 
 void playerCallback(SLAndroidSimpleBufferQueueItf caller, void *pContext) {
     XAudio *xAudio = (XAudio *) pContext;
-    int dataSize = xAudio->resampleAudio();
-    // 这里为什么报错，留在后面再去解决
-    (*caller)->Enqueue(caller, xAudio->resampleOutBuffer, dataSize);
+    if (xAudio != NULL) {
+        int bufferSize = xAudio->resampleAudio();
+        if (bufferSize > 0) {
+            xAudio->currentTime += bufferSize / ((double) (xAudio->sampleRate * 2 * 2));
+
+            // 1s 回调更新一次进度
+            if (xAudio->currentTime - xAudio->lastTime > 1) {
+                xAudio->lastTime = xAudio->currentTime;
+                if (xAudio->xJniCall != NULL) {
+                    xAudio->xJniCall->onCallProgress(THREAD_CHILD, xAudio->currentTime,
+                                                     xAudio->duration);
+                }
+            }
+
+            if (xAudio->duration > 0 && xAudio->duration <= xAudio->currentTime) {
+                xAudio->xJniCall->onCallComplete(THREAD_CHILD);
+            }
+
+            (*caller)->Enqueue(caller, (char *) xAudio->resampleOutBuffer, bufferSize);
+        }
+    }
+
+//    int dataSize = xAudio->resampleAudio();
+//    // 这里为什么报错，留在后面再去解决
+//    (*caller)->Enqueue(caller, xAudio->resampleOutBuffer, dataSize);
 }
 
 
@@ -109,7 +137,6 @@ void XAudio::initCrateOpenSLES() {
                                                                       &reverbSettings);
     // 3.3 创建播放器
     SLObjectItf pPlayer = NULL;
-    SLPlayItf pPlayItf = NULL;
     SLDataLocator_AndroidSimpleBufferQueue simpleBufferQueue = {
             SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 2};
     SLDataFormat_PCM formatPcm = {
@@ -128,13 +155,13 @@ void XAudio::initCrateOpenSLES() {
     (*engineEngine)->CreateAudioPlayer(engineEngine, &pPlayer, &audioSrc, &audioSnk, 3,
                                        interfaceIds, interfaceRequired);
     (*pPlayer)->Realize(pPlayer, SL_BOOLEAN_FALSE);
-    (*pPlayer)->GetInterface(pPlayer, SL_IID_PLAY, &pPlayItf);
+    (*pPlayer)->GetInterface(pPlayer, SL_IID_PLAY, &slPlayItf);
     // 3.4 设置缓存队列和回调函数
     SLAndroidSimpleBufferQueueItf playerBufferQueue;
     (*pPlayer)->GetInterface(pPlayer, SL_IID_BUFFERQUEUE, &playerBufferQueue);
     (*playerBufferQueue)->RegisterCallback(playerBufferQueue, playerCallback, this);
     // 3.5 设置播放状态
-    (*pPlayItf)->SetPlayState(pPlayItf, SL_PLAYSTATE_PLAYING);
+    (*slPlayItf)->SetPlayState(slPlayItf, SL_PLAYSTATE_PLAYING);
     // 3.6 调用回调函数
     playerCallback(playerBufferQueue, this);
 }
@@ -144,6 +171,9 @@ XAudio::~XAudio() {
 }
 
 void XAudio::release() {
+
+    stopAudio();
+
     if (xPacketQueue != NULL) {
         xPacketQueue->clear();
         delete (xPacketQueue);
@@ -213,6 +243,11 @@ void XAudio::analysisStream(ThreadMode threadMode, AVStream **pStream) {
                            ("codec audio open error: %s", av_err2str(codecOpenRes)));
     }
 
+    this->sampleRate = pCodecContext->frame_size;
+    this->duration = pFormatContext->duration / AV_TIME_BASE;
+    this->timeBase = pFormatContext->streams[audioStreamIndex]->time_base;
+
+
     // ---------- 重采样 start ----------
     int64_t out_ch_layout = AV_CH_LAYOUT_STEREO;
     enum AVSampleFormat out_sample_fmt = AVSampleFormat::AV_SAMPLE_FMT_S16;
@@ -237,4 +272,22 @@ void XAudio::analysisStream(ThreadMode threadMode, AVStream **pStream) {
 
     // ---------- 重采样 end ----------
     resampleOutBuffer = (uint8_t *) malloc(pCodecContext->frame_size * 2 * 2);
+}
+
+void XAudio::pauseAudio() {
+    if (slPlayItf != NULL) {
+        (*slPlayItf)->SetPlayState(slPlayItf, SL_PLAYSTATE_PAUSED);
+    }
+}
+
+void XAudio::resumeAudio() {
+    if (slPlayItf != NULL) {
+        (*slPlayItf)->SetPlayState(slPlayItf, SL_PLAYSTATE_PLAYING);
+    }
+}
+
+void XAudio::stopAudio() {
+    if (slPlayItf != NULL) {
+        (*slPlayItf)->SetPlayState(slPlayItf, SL_PLAYSTATE_STOPPED);
+    }
 }

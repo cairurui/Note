@@ -28,6 +28,7 @@ public:
     uint8_t *resampleOutBuffer = 0;
     XPacketQueue *xPacketQueue = NULL;
     XPlayerStatus *xPlayerStatus = NULL;
+    SLPlayItf slPlayItf = NULL;
 
 public:
 
@@ -46,6 +47,18 @@ public:
     void callPlayerJniError(ThreadMode threadMode, int code, char *msg);
 
     void release();
+
+    void pauseAudio();
+
+    void resumeAudio();
+
+    void stopAudio();
+
+    double currentTime;
+    int sampleRate;
+    double lastTime;
+    int duration;
+    AVRational timeBase;
 };
 
 
