@@ -4,7 +4,7 @@ ext {  //extend
     isModule = false
     android = [
             compileSdkVersion: 28,
-            minSdkVersion    : 15,
+            minSdkVersion    : 19,
             targetSdkVersion : 28,
             versionCode      : 1,
             versionName      : "1.0"

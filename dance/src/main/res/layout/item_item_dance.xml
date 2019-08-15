@@ -3,12 +3,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-
-    <TextView
+    <com.github.chrisbanes.photoview.PhotoView
+        android:id="@+id/photoView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:text="hello word"
-        android:textAllCaps="false" />
+        android:layout_height="match_parent" />
+
+    <!--<ImageView-->
+        <!--android:id="@+id/photoView"-->
+        <!--android:layout_width="match_parent"-->
+        <!--android:layout_height="match_parent" />-->
 
 </android.support.constraint.ConstraintLayout>

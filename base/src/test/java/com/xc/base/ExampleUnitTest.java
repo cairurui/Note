@@ -1,4 +1,4 @@
-package com.example.base;
+package com.xc.base;
 
 import org.junit.Test;
 
