@@ -19,6 +19,7 @@ import java.util.List;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
+import okhttp3.ResponseBody;
 import retrofit2.Response;
 
 public class DanceActivity extends AppCompatActivity {
@@ -55,16 +56,9 @@ public class DanceActivity extends AppCompatActivity {
         rvPage.setLayoutManager(layoutManager);
         rvPage.setAdapter(mAdapter);
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    test();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
+
+        getCategory();
+
 
     }
 
@@ -75,8 +69,9 @@ public class DanceActivity extends AppCompatActivity {
     }
 
     @SuppressWarnings("all")
-    private void test() throws Exception {
+    private void getCategory() {
 
+        // https://api.github.com/repos/cairurui/Note/contents/doc/dance?ref=master
         String owner = "cairurui";
         String repo = "Note";
         String path = "doc/dance";
@@ -86,28 +81,84 @@ public class DanceActivity extends AppCompatActivity {
                 .getRepoFiles(owner, repo, path, ref)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Consumer<Response<ArrayList<FileModel>>>() {
+                .subscribe(new Consumer<ArrayList<FileModel>>() {
                     @Override
-                    public void accept(Response<ArrayList<FileModel>> arrayListResponse) throws Exception {
-                        Log.d(TAG, "accept() called with: arrayListResponse = [" + arrayListResponse + "]");
+                    public void accept(ArrayList<FileModel> fileModels) throws Exception {
+                        Log.d(TAG, "accept() called with: arrayListResponse = [" + fileModels + "]");
+
+                        if (fileModels == null || fileModels.size() == 0) {
+                            return;
+                        }
+
+                        // 解析第二层
+
+                        for (int i = 0; i < fileModels.size(); i++) {
+                            FileModel fileModel = fileModels.get(i);
+                            if (!fileModel.isDir()) {
+                                continue;
+                            }
+                            getFile(fileModel.getName());
+
+                        }
+
                     }
                 });
 
 
-//        OkHttpClient client = new OkHttpClient();
-//        Request request = new Request.Builder()
-//                .url("https://api.github.com/repos/cairurui/Note/contents/?ref=master&uniqueLoginId=cairurui")
-//                .build();
-//
-//        try (Response response = client.newCall(request).execute()) {
-//            if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
-//
-//            Headers responseHeaders = response.headers();
-//            for (int i = 0; i < responseHeaders.size(); i++) {
-//                System.out.println(responseHeaders.name(i) + ": " + responseHeaders.value(i));
-//            }
-//
-//            System.out.println(response.body().string());
-//        }
     }
+
+    @SuppressWarnings("all")
+    private void getFile(String dirName) {
+        // https://api.github.com/repos/cairurui/Note/contents/doc/dance/%E5%A4%9A%E7%BA%BF%E7%A8%8B?ref=master&uniqueLoginId=cairurui
+        String owner = "cairurui";
+        String repo = "Note";
+        String path = "doc/dance/" + dirName;
+        String ref = "master";
+
+        getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
+                .getRepoFiles(owner, repo, path, ref)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<ArrayList<FileModel>>() {
+                    @Override
+                    public void accept(ArrayList<FileModel> fileModels) throws Exception {
+                        Log.d(TAG, "accept() called with: arrayListResponse = [" + fileModels + "]");
+                        // 对文件进行解析
+                        for (int i = 0; i < fileModels.size(); i++) {
+                            FileModel fileModel = fileModels.get(i);
+                            decodeFile(fileModel.getPath());
+                        }
+                        /**
+                         * ### 标题
+                         * 文字
+                         * xxx.png
+                         * xxx.mp3
+                         */
+
+
+                    }
+                });
+    }
+
+    @SuppressWarnings("all")
+    private void decodeFile(String path) {
+        // https://api.github.com/repos/cairurui/Note/contents/doc/dance/%E5%A4%9A%E7%BA%BF%E7%A8%8B?ref=master&uniqueLoginId=cairurui
+
+//        "path":"doc/dance/多线程/01-死锁.md"
+        String url = "https://api.github.com/repos/cairurui/Note/contents/" + path;
+        getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
+                .getFileAsStream(true, url)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Response<ResponseBody>>() {
+                    @Override
+                    public void accept(Response<ResponseBody> responseBodyResponse) throws Exception {
+                        Log.e(TAG, "accept() called with: responseBodyResponse = [" + responseBodyResponse + "]");
+                        ResponseBody body = responseBodyResponse.body();
+                        String s = new String(body.bytes());
+                        Log.e(TAG, s);
+                    }
+                });
+    }
+
 }
