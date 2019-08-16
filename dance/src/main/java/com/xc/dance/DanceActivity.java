@@ -10,13 +10,24 @@ import android.util.Log;
 import com.xc.dance.adapter.ListDanceAdapter;
 import com.xc.dance.bean.DanceBean;
 import com.xc.dance.bean.FileModel;
+import com.xc.dance.event.ArticleEvent;
 import com.xc.dance.http.RepoService;
 import com.xc.dance.http.core.AppRetrofit;
+import com.xc.dance.parse.ArticleParse;
 
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import okhttp3.ResponseBody;
@@ -46,10 +57,8 @@ public class DanceActivity extends AppCompatActivity {
         snapHelper = new PagerSnapHelper();
         snapHelper.attachToRecyclerView(rvPage);
 
-        mDatas = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            mDatas.add(new DanceBean());
-        }
+        mDatas = ArticleParse.INSTANCE.datas;
+//        mDatas = new ArrayList<>();
 
         mAdapter = new ListDanceAdapter(this, mDatas);
         layoutManager = new LinearLayoutManager(DanceActivity.this, LinearLayoutManager.VERTICAL, false);
@@ -62,10 +71,30 @@ public class DanceActivity extends AppCompatActivity {
 
     }
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        EventBus.getDefault().register(this);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        EventBus.getDefault().unregister(this);
+    }
+
     protected <T> T getServices(Class<T> serviceClass, String baseUrl) {
         return AppRetrofit.INSTANCE
                 .getRetrofit(baseUrl)
                 .create(serviceClass);
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onArticleEvent(ArticleEvent event) {
+
+        mAdapter.notifyDataSetChanged();
+
+
     }
 
     @SuppressWarnings("all")
@@ -80,7 +109,6 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getRepoFiles(owner, repo, path, ref)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<ArrayList<FileModel>>() {
                     @Override
                     public void accept(ArrayList<FileModel> fileModels) throws Exception {
@@ -97,7 +125,7 @@ public class DanceActivity extends AppCompatActivity {
                             if (!fileModel.isDir()) {
                                 continue;
                             }
-                            getFile(fileModel.getName());
+                            getFiles(fileModel.getName());
 
                         }
 
@@ -108,7 +136,7 @@ public class DanceActivity extends AppCompatActivity {
     }
 
     @SuppressWarnings("all")
-    private void getFile(String dirName) {
+    private void getFiles(final String dirName) {
         // https://api.github.com/repos/cairurui/Note/contents/doc/dance/%E5%A4%9A%E7%BA%BF%E7%A8%8B?ref=master&uniqueLoginId=cairurui
         String owner = "cairurui";
         String repo = "Note";
@@ -118,7 +146,6 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getRepoFiles(owner, repo, path, ref)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<ArrayList<FileModel>>() {
                     @Override
                     public void accept(ArrayList<FileModel> fileModels) throws Exception {
@@ -126,22 +153,18 @@ public class DanceActivity extends AppCompatActivity {
                         // 对文件进行解析
                         for (int i = 0; i < fileModels.size(); i++) {
                             FileModel fileModel = fileModels.get(i);
-                            decodeFile(fileModel.getPath());
+                            if (fileModel.isDir()) {
+                                continue;
+                            }
+                            decodeFile(fileModel.getPath(),dirName);
                         }
-                        /**
-                         * ### 标题
-                         * 文字
-                         * xxx.png
-                         * xxx.mp3
-                         */
-
 
                     }
                 });
     }
 
     @SuppressWarnings("all")
-    private void decodeFile(String path) {
+    private void decodeFile(String path,final String dir) {
         // https://api.github.com/repos/cairurui/Note/contents/doc/dance/%E5%A4%9A%E7%BA%BF%E7%A8%8B?ref=master&uniqueLoginId=cairurui
 
 //        "path":"doc/dance/多线程/01-死锁.md"
@@ -149,14 +172,13 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getFileAsStream(true, url)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<Response<ResponseBody>>() {
                     @Override
                     public void accept(Response<ResponseBody> responseBodyResponse) throws Exception {
                         Log.e(TAG, "accept() called with: responseBodyResponse = [" + responseBodyResponse + "]");
                         ResponseBody body = responseBodyResponse.body();
-                        String s = new String(body.bytes());
-                        Log.e(TAG, s);
+                        InputStream inputStream = body.byteStream();
+                        ArticleParse.INSTANCE.parseContent(inputStream,dir);
                     }
                 });
     }
