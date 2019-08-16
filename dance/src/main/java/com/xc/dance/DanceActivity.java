@@ -13,10 +13,14 @@ import com.xc.dance.bean.FileModel;
 import com.xc.dance.http.RepoService;
 import com.xc.dance.http.core.AppRetrofit;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import okhttp3.ResponseBody;
@@ -80,7 +84,6 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getRepoFiles(owner, repo, path, ref)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<ArrayList<FileModel>>() {
                     @Override
                     public void accept(ArrayList<FileModel> fileModels) throws Exception {
@@ -97,7 +100,7 @@ public class DanceActivity extends AppCompatActivity {
                             if (!fileModel.isDir()) {
                                 continue;
                             }
-                            getFile(fileModel.getName());
+                            getFiles(fileModel.getName());
 
                         }
 
@@ -108,7 +111,7 @@ public class DanceActivity extends AppCompatActivity {
     }
 
     @SuppressWarnings("all")
-    private void getFile(String dirName) {
+    private void getFiles(String dirName) {
         // https://api.github.com/repos/cairurui/Note/contents/doc/dance/%E5%A4%9A%E7%BA%BF%E7%A8%8B?ref=master&uniqueLoginId=cairurui
         String owner = "cairurui";
         String repo = "Note";
@@ -118,7 +121,6 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getRepoFiles(owner, repo, path, ref)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<ArrayList<FileModel>>() {
                     @Override
                     public void accept(ArrayList<FileModel> fileModels) throws Exception {
@@ -126,19 +128,17 @@ public class DanceActivity extends AppCompatActivity {
                         // 对文件进行解析
                         for (int i = 0; i < fileModels.size(); i++) {
                             FileModel fileModel = fileModels.get(i);
+                            if (fileModel.isDir()) {
+                                continue;
+                            }
                             decodeFile(fileModel.getPath());
                         }
-                        /**
-                         * ### 标题
-                         * 文字
-                         * xxx.png
-                         * xxx.mp3
-                         */
-
 
                     }
                 });
     }
+
+    public static final String TITLE_PREFIX = "### ";
 
     @SuppressWarnings("all")
     private void decodeFile(String path) {
@@ -149,14 +149,79 @@ public class DanceActivity extends AppCompatActivity {
         getServices(RepoService.class, RepoService.GITHUB_API_BASE_URL)
                 .getFileAsStream(true, url)
                 .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Consumer<Response<ResponseBody>>() {
                     @Override
                     public void accept(Response<ResponseBody> responseBodyResponse) throws Exception {
                         Log.e(TAG, "accept() called with: responseBodyResponse = [" + responseBodyResponse + "]");
                         ResponseBody body = responseBodyResponse.body();
-                        String s = new String(body.bytes());
-                        Log.e(TAG, s);
+//                        String s = new String(body.bytes());
+//                        Log.e(TAG, s);
+                        /**
+                         * ### 标题
+                         * 文字
+                         * xxx.png
+                         * xxx.mp3
+                         */
+
+                        InputStream inputStream = body.byteStream();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+
+                        List<DanceBean> datas = new ArrayList<>();
+                        DanceBean bean = null;
+                        while (reader.ready()) {
+                            String line = reader.readLine();
+                            if (line == null) continue;
+                            line = line.trim();
+//                            if (line.length() == 0) continue;
+
+
+//                            if (Pattern.matches( "^(#+)(.*)", line)) {
+//
+//                            }
+
+
+                            // title --> ### 死锁发生条件
+                            if (line.startsWith(TITLE_PREFIX)) {
+                                line = line.replace(TITLE_PREFIX, "");
+                                bean = new DanceBean();
+                                datas.add(bean);
+                                bean.setTitle(line);
+                                continue;
+                            }
+
+                            // img --> ![image-20190815213007736](assets/image-20190815213007736.png)
+                            String pattern = "!\\[[^\\]]+\\]\\([^\\)]+\\)";
+                            if (Pattern.matches(pattern, line)) {
+                                Log.e(TAG, "accept: line:" + line);
+
+                                Pattern p = Pattern.compile("(?<=\\()[^\\)]+");
+                                Matcher matcher = p.matcher(line);
+                                while (matcher.find()) {
+                                    String group = matcher.group();
+                                    Log.d(TAG, "accept: group:" + group);
+                                    bean.addImg(group);
+                                }
+                                continue;
+                            }
+
+                            if (line.length() == 0) {
+                                bean.addNewContent();
+                                continue;
+                            }
+
+                            if (line.length() > 0) {
+                                bean.addLine(line);
+                            }
+
+
+                        }
+
+
+                        for (int i = 0; i < datas.size(); i++) {
+                            Log.d(TAG, "accept: " + datas);
+                        }
+
+
                     }
                 });
     }
